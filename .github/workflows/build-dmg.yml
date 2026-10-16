@@ -1,0 +1,31 @@
+name: Build DMG
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-dmg:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+
+      - name: Install deps
+        working-directory: apps/desktop
+        run: npm i
+
+      - name: Build DMG
+        working-directory: apps/desktop
+        run: npm run dist:mac:dmg -- --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: hermes-dmg
+          path: apps/desktop/release/*.dmg
