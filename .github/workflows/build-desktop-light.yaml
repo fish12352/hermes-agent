@@ -51,10 +51,10 @@ jobs:
         id: prepared
         working-directory: hermes-source
         run: |
-          $python = python -c "import json; print(json.load(open('.build/desktop-job/prepared.json', encoding='utf-8'))['python'])"
-          if (!(Test-Path $python)) { throw "Prepared Python not found: $python" }
-          "python=$python" >> $env:GITHUB_OUTPUT
-        shell: pwsh
+          python_path="$(python -c "import json; print(json.load(open('.build/desktop-job/prepared.json', encoding='utf-8'))['python'])")"
+          test -x "$python_path" || { echo "Prepared Python not found: $python_path" >&2; exit 1; }
+          echo "python=$python_path" >> "$GITHUB_OUTPUT"
+        shell: bash
 
       - name: Package macOS DMG (Light)
         working-directory: hermes-source/apps/desktop
