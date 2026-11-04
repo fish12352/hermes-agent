@@ -47,10 +47,20 @@ jobs:
             --commit=${{ steps.source.outputs.sha }} \
             --variant=light
 
+      - name: Resolve prepared Python
+        id: prepared
+        working-directory: hermes-source
+        run: |
+          $python = python -c "import json; print(json.load(open('.build/desktop-job/prepared.json', encoding='utf-8'))['python'])"
+          if (!(Test-Path $python)) { throw "Prepared Python not found: $python" }
+          "python=$python" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
       - name: Package macOS DMG (Light)
         working-directory: hermes-source/apps/desktop
         run: npm run dist:mac:dmg -- --publish never
         env:
+          HERMES_PYTHON: ${{ steps.prepared.outputs.python }}
           HERMES_DESKTOP_VARIANT: light
           CSC_IDENTITY_AUTO_DISCOVERY: false
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
@@ -109,11 +119,11 @@ jobs:
           $releaseDir = Join-Path $env:GITHUB_WORKSPACE "hermes-source/apps/desktop/release"
           if (!(Test-Path $releaseDir)) { throw "Desktop release directory not found: $releaseDir" }
 
-          $exe = Get-ChildItem -Path $releaseDir -Filter "Hermes.exe" -Recurse -File |
+          $exe = Get-ChildItem -Path $releaseDir -Filter "Hermes Light.exe" -Recurse -File |
             Where-Object { $_.FullName -match "win-unpacked" } |
             Select-Object -First 1
 
-          if (!$exe) { throw "Hermes.exe was not found in the unpacked Windows build." }
+          if (!$exe) { throw "Hermes Light.exe was not found in the unpacked Windows build." }
 
           $appDir = $exe.Directory.FullName
           $stageDir = Join-Path $env:GITHUB_WORKSPACE "portable-stage"
