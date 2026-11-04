@@ -1,24 +1,45 @@
-name: Build Desktop Light (macOS + Windows)
+name: Build Hermes Desktop Light (macOS + Windows)
 
 on:
   workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Official Hermes source branch, tag, or commit"
+        required: true
+        default: "main"
+        type: string
+
+permissions:
+  contents: write
 
 jobs:
   build-macos:
+    name: Build macOS Light DMG
     runs-on: macos-latest
+    timeout-minutes: 180
+
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - name: Checkout official Hermes source
+        uses: actions/checkout@v4
         with:
-          node-version: '26.x'
+          repository: NousResearch/hermes-agent
+          ref: ${{ inputs.source_ref }}
+          path: hermes-source
+          fetch-depth: 0
 
-      - name: Install deps
-        working-directory: apps/desktop
-        run: npm i
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-      - name: Build macOS DMG (Light)
-        working-directory: apps/desktop
+      - name: Build official Hermes Desktop Light (macOS)
+        working-directory: hermes-source
+        run: |
+          python scripts/bundles/desktop.py \
+            --variant=light
+
+      - name: Package macOS DMG (Light)
+        working-directory: hermes-source/apps/desktop
         run: npm run dist:mac:dmg -- --publish never
         env:
           HERMES_DESKTOP_VARIANT: light
@@ -29,32 +50,71 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: hermes-light-macos
-          path: apps/desktop/release/*.dmg
-
+          path: hermes-source/apps/desktop/release/*.dmg
+          
   build-windows:
-    runs-on: windows-latest
+    name: Build Windows x64 Light ZIP
+    runs-on: windows-2022
+    timeout-minutes: 180
+
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - name: Checkout official Hermes source
+        uses: actions/checkout@v4
         with:
-          node-version: '26.x'
+          repository: NousResearch/hermes-agent
+          ref: ${{ inputs.source_ref }}
+          path: hermes-source
+          fetch-depth: 0
 
-      - name: Install deps
-        working-directory: apps/desktop
-        run: npm i
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-      - name: Build Windows MSIX (Light)
-        working-directory: apps/desktop
-        run: npm run dist:win:msix -- --publish never
+      - name: Build official Hermes Desktop Light (Windows)
+        working-directory: hermes-source
+        run: |
+          python scripts/bundles/desktop.py `
+            --variant=light
+
+      - name: Package unpacked Windows application (Light)
+        working-directory: hermes-source
+        run: |
+          npm run pack --workspace apps/desktop
         env:
           HERMES_DESKTOP_VARIANT: light
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Windows MSIX
+      - name: Locate and validate portable application
+        id: app
+        shell: pwsh
+        run: |
+          $releaseDir = Join-Path $env:GITHUB_WORKSPACE "hermes-source/apps/desktop/release"
+          if (!(Test-Path $releaseDir)) { throw "Desktop release directory not found: $releaseDir" }
+
+          $exe = Get-ChildItem -Path $releaseDir -Filter "Hermes.exe" -Recurse -File |
+            Where-Object { $_.FullName -match "win-unpacked" } |
+            Select-Object -First 1
+
+          if (!$exe) { throw "Hermes.exe was not found in the unpacked Windows build." }
+
+          $appDir = $exe.Directory.FullName
+          $stageDir = Join-Path $env:GITHUB_WORKSPACE "portable-stage"
+          New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
+          Copy-Item -Path (Join-Path $appDir "*") -Destination $stageDir -Recurse -Force
+
+          $pythonFiles = Get-ChildItem $stageDir -Recurse -File | Where-Object {
+              $_.Name -match '^(python|python3)(\.exe)?$' -or $_.FullName -match '\\(python|python3|site-packages)\\'
+          }
+          if ($pythonFiles) { throw "Possible Python runtime found in Light package." }
+
+          $zip = Join-Path $env:GITHUB_WORKSPACE "Hermes-DesktopLight-Windows-x64.zip"
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Compress-Archive -Path (Join-Path $stageDir "*") -DestinationPath $zip -CompressionLevel Optimal
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+          Write-Host "Portable ZIP created: $zip"
+
+      - name: Upload Windows Portable ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: hermes-light-windows
-          path: apps/desktop/release/*.msix
+          name: hermes-light-windows-portable
+          path: ${{ steps.app.outputs.zip }}
