@@ -1,0 +1,60 @@
+name: Build Desktop Light (macOS + Windows)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26.x'
+
+      - name: Install deps
+        working-directory: apps/desktop
+        run: npm i
+
+      - name: Build macOS DMG (Light)
+        working-directory: apps/desktop
+        run: npm run dist:mac:dmg -- --publish never
+        env:
+          HERMES_DESKTOP_VARIANT: light
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+
+      - name: Upload macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: hermes-light-macos
+          path: apps/desktop/release/*.dmg
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26.x'
+
+      - name: Install deps
+        working-directory: apps/desktop
+        run: npm i
+
+      - name: Build Windows MSIX (Light)
+        working-directory: apps/desktop
+        run: npm run dist:win:msix -- --publish never
+        env:
+          HERMES_DESKTOP_VARIANT: light
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows MSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: hermes-light-windows
+          path: apps/desktop/release/*.msix
