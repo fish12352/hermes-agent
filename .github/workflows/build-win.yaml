@@ -1,0 +1,39 @@
+name: Build Windows NSIS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 注意：PR 里用的是 nvm use，在 Actions 中我们使用 setup-node。
+      # 如果你的 package.json 里指定了特定版本，请在此处修改（推荐 20 或 22）
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22' 
+
+      - name: Install deps
+        working-directory: apps/desktop
+        run: npm i
+
+      - name: Build Windows Installer (NSIS)
+        working-directory: apps/desktop
+        # 完全遵循 PR 提供的命令，并加上 --publish never 防止意外发布
+        run: npm run dist:win:nsis -- --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+
+      - name: Upload Windows Installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: hermes-windows-installer
+          # 抓取所有 exe 安装包（有时也会生成 blockmap 或 zip）
+          path: |
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.blockmap
