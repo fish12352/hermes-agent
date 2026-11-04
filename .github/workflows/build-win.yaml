@@ -26,7 +26,7 @@ jobs:
 
       - name: Build Windows Installer (NSIS)
         working-directory: apps/desktop
-        run: npm run dist:win:nsis -- --publish never
+        run: npm run dist:win -- --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
