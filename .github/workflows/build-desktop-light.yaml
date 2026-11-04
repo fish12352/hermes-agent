@@ -27,6 +27,14 @@ jobs:
           path: hermes-source
           fetch-depth: 0
 
+      - name: Resolve source commit
+        id: source
+        shell: bash
+        run: |
+          sha="$(git -C hermes-source rev-parse HEAD)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Source commit: $sha"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -36,6 +44,7 @@ jobs:
         working-directory: hermes-source
         run: |
           python scripts/bundles/desktop.py \
+            --commit=${{ steps.source.outputs.sha }} \
             --variant=light
 
       - name: Package macOS DMG (Light)
@@ -51,7 +60,7 @@ jobs:
         with:
           name: hermes-light-macos
           path: hermes-source/apps/desktop/release/*.dmg
-          
+
   build-windows:
     name: Build Windows x64 Light ZIP
     runs-on: windows-2022
@@ -66,6 +75,14 @@ jobs:
           path: hermes-source
           fetch-depth: 0
 
+      - name: Resolve source commit
+        id: source
+        shell: pwsh
+        run: |
+          $sha = git -C hermes-source rev-parse HEAD
+          "sha=$sha" >> $env:GITHUB_OUTPUT
+          Write-Host "Source commit: $sha"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -75,6 +92,7 @@ jobs:
         working-directory: hermes-source
         run: |
           python scripts/bundles/desktop.py `
+            --commit=${{ steps.source.outputs.sha }} `
             --variant=light
 
       - name: Package unpacked Windows application (Light)
