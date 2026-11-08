@@ -73,23 +73,8 @@ jobs:
           echo "DMG creation continued to fail with hdiutil Resource busy after 3 attempts." >&2
           exit 1
 
-      - name: Resolve prepared Python
-        id: prepared
-        working-directory: hermes-source
-        run: |
-          python_path="$(python -c "import json; print(json.load(open('.build/desktop-job/prepared.json', encoding='utf-8'))['python'])")"
-          test -x "$python_path" || { echo "Prepared Python not found: $python_path" >&2; exit 1; }
-          echo "python=$python_path" >> "$GITHUB_OUTPUT"
-        shell: bash
-
-      - name: Package macOS DMG (Light)
-        working-directory: hermes-source/apps/desktop
-        run: npm run dist:mac:dmg -- --publish never
-        env:
-          HERMES_PYTHON: ${{ steps.prepared.outputs.python }}
-          HERMES_DESKTOP_VARIANT: light
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+      # desktop.py already builds both macOS targets configured upstream:
+      # DMG and ZIP. Do not invoke npm/pnpm packaging a second time here.
 
       - name: Upload macOS DMG
         uses: actions/upload-artifact@v4
@@ -127,16 +112,13 @@ jobs:
       - name: Build official Hermes Desktop Light (Windows)
         working-directory: hermes-source
         run: |
+          # Ask the official bundle builder for an unpacked directory rather
+          # than its default MSIX installer target. This reuses the prepared
+          # dependencies and the same validated build environment.
           python scripts/bundles/desktop.py `
             --commit=${{ steps.source.outputs.sha }} `
-            --variant=light
-
-      - name: Package unpacked Windows application (Light)
-        working-directory: hermes-source
-        run: |
-          npm run pack --workspace apps/desktop
-        env:
-          HERMES_DESKTOP_VARIANT: light
+            --variant=light `
+            --dir
 
       - name: Locate and validate portable application
         id: app
@@ -145,11 +127,12 @@ jobs:
           $releaseDir = Join-Path $env:GITHUB_WORKSPACE "hermes-source/apps/desktop/release"
           if (!(Test-Path $releaseDir)) { throw "Desktop release directory not found: $releaseDir" }
 
-          $exe = Get-ChildItem -Path $releaseDir -Filter "Hermes Light.exe" -Recurse -File |
+          # Commit builds include the seven-character source SHA in the exe name.
+          $exe = Get-ChildItem -Path $releaseDir -Filter "hermes-light-*.exe" -Recurse -File |
             Where-Object { $_.FullName -match "win-unpacked" } |
             Select-Object -First 1
 
-          if (!$exe) { throw "Hermes Light.exe was not found in the unpacked Windows build." }
+          if (!$exe) { throw "hermes-light-<commit>.exe was not found in the unpacked Windows build." }
 
           $appDir = $exe.Directory.FullName
           $stageDir = Join-Path $env:GITHUB_WORKSPACE "portable-stage"
