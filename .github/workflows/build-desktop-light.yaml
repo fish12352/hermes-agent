@@ -38,6 +38,31 @@ jobs:
         working-directory: hermes-source
         shell: bash
         run: |
+          # Commit pinning selects the exact upstream source, but the desktop
+          # bundle builder also uses that SHA to create a development identity.
+          # For this distributable Light build, keep the source pin while
+          # restoring the normal stable product identity (white official icon,
+          # unsuffixed app name and stable updater channel).
+          cat > "$RUNNER_TEMP/build_desktop_light.py" <<'PY'
+          import os
+          import sys
+
+          sys.path.insert(0, os.getcwd())
+          from scripts.bundles import desktop_inputs
+
+          original_identity_environment = desktop_inputs.identity_environment
+
+          def official_identity_environment(request, variant, inherited):
+              env = original_identity_environment(request, variant, inherited)
+              env.pop("HERMES_BUILD_COMMIT", None)
+              return env
+
+          desktop_inputs.identity_environment = official_identity_environment
+
+          from scripts.bundles.desktop import main
+          main()
+          PY
+
           # hdiutil create can fail intermittently with EBUSY on hosted macOS
           # runners while the filesystem is still flushing/indexing the app bundle.
           for attempt in 1 2 3; do
@@ -45,7 +70,7 @@ jobs:
             echo "Desktop build attempt $attempt/3"
             sync
 
-            if python scripts/bundles/desktop.py \
+            if python "$RUNNER_TEMP/build_desktop_light.py" \
               --commit=${{ steps.source.outputs.sha }} \
               --variant=light 2>&1 | tee "$log_file"; then
               exit 0
@@ -105,11 +130,36 @@ jobs:
 
       - name: Build official Hermes Desktop Light (Windows)
         working-directory: hermes-source
+        shell: pwsh
         run: |
+          # Keep the exact upstream commit, but package with the normal stable
+          # Light product identity rather than the commit-branded dev identity.
+          $wrapper = @'
+          import os
+          import sys
+
+          sys.path.insert(0, os.getcwd())
+          from scripts.bundles import desktop_inputs
+
+          original_identity_environment = desktop_inputs.identity_environment
+
+          def official_identity_environment(request, variant, inherited):
+              env = original_identity_environment(request, variant, inherited)
+              env.pop("HERMES_BUILD_COMMIT", None)
+              return env
+
+          desktop_inputs.identity_environment = official_identity_environment
+
+          from scripts.bundles.desktop import main
+          main()
+          '@
+          $wrapperPath = Join-Path $env:RUNNER_TEMP "build_desktop_light.py"
+          Set-Content -Path $wrapperPath -Value $wrapper -Encoding utf8
+
           # Ask the official bundle builder for an unpacked directory rather
           # than its default MSIX installer target. This reuses the prepared
           # dependencies and the same validated build environment.
-          python scripts/bundles/desktop.py `
+          python $wrapperPath `
             --commit=${{ steps.source.outputs.sha }} `
             --variant=light `
             -- --dir
