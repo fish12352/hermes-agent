@@ -118,7 +118,7 @@ jobs:
           python scripts/bundles/desktop.py `
             --commit=${{ steps.source.outputs.sha }} `
             --variant=light `
-            --dir
+            -- --dir
 
       - name: Locate and validate portable application
         id: app
