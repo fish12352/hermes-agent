@@ -171,12 +171,12 @@ jobs:
           $releaseDir = Join-Path $env:GITHUB_WORKSPACE "hermes-source/apps/desktop/release"
           if (!(Test-Path $releaseDir)) { throw "Desktop release directory not found: $releaseDir" }
 
-          # Commit builds include the seven-character source SHA in the exe name.
-          $exe = Get-ChildItem -Path $releaseDir -Filter "hermes-light-*.exe" -Recurse -File |
+          # Stable Light branding uses the normal "Hermes Light.exe" name.
+          $exe = Get-ChildItem -Path $releaseDir -Filter "Hermes Light.exe" -Recurse -File |
             Where-Object { $_.FullName -match "win-unpacked" } |
             Select-Object -First 1
 
-          if (!$exe) { throw "hermes-light-<commit>.exe was not found in the unpacked Windows build." }
+          if (!$exe) { throw "Hermes Light.exe was not found in the unpacked Windows build." }
 
           $appDir = $exe.Directory.FullName
           $stageDir = Join-Path $env:GITHUB_WORKSPACE "portable-stage"
